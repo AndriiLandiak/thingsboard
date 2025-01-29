@@ -105,6 +105,7 @@ import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rule.RuleChainService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.dao.user.UserService;
@@ -1018,6 +1019,11 @@ public class DefaultTbContext implements TbContext {
     @Override
     public AuditLogService getAuditLogService() {
         return mainCtx.getAuditLogService();
+    }
+
+    @Override
+    public SecretConfigurationService getSecretConfigurationService() {
+        return mainCtx.getSecretConfigurationService();
     }
 
     private TbMsgMetaData getActionMetaData(RuleNodeId ruleNodeId) {

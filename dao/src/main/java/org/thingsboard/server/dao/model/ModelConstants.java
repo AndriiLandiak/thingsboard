@@ -758,4 +758,13 @@ public class ModelConstants {
         }
     }
 
+    /**
+     * Secret constants.
+     */
+    public static final String SECRET_TABLE_NAME = "secret";
+    public static final String SECRET_TENANT_ID_COLUMN = TENANT_ID_COLUMN;
+    public static final String SECRET_NAME_COLUMN = "name";
+    public static final String SECRET_KEY_COLUMN = "key";
+    public static final String SECRET_VALUE_COLUMN = "value";
+
 }

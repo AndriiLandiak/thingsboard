@@ -113,6 +113,8 @@ public class EntityIdFactory {
                 return new DomainId(uuid);
             case MOBILE_APP_BUNDLE:
                 return new MobileAppBundleId(uuid);
+            case SECRET:
+                return new SecretId(uuid);
         }
         throw new IllegalArgumentException("EntityType " + type + " is not supported!");
     }

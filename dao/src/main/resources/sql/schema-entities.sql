@@ -386,6 +386,16 @@ CREATE TABLE IF NOT EXISTS rule_chain_debug_event (
     e_error varchar
 ) PARTITION BY RANGE (ts);
 
+CREATE TABLE IF NOT EXISTS secret (
+    id uuid NOT NULL CONSTRAINT secret_pkey PRIMARY KEY,
+    created_time bigint NOT NULL,
+    tenant_id uuid,
+    name varchar(255),
+    key varchar(255),
+    value bytea,
+    CONSTRAINT secret_unq_key UNIQUE (tenant_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS stats_event (
     id uuid NOT NULL,
     tenant_id uuid NOT NULL,

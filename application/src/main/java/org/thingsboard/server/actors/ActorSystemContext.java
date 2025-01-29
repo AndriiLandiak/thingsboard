@@ -90,6 +90,7 @@ import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.rule.RuleNodeStateService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.dao.tenant.TenantProfileService;
 import org.thingsboard.server.dao.tenant.TenantService;
@@ -486,6 +487,11 @@ public class ActorSystemContext {
     @Autowired(required = false)
     @Getter
     private EntityService entityService;
+
+    @Lazy
+    @Autowired(required = false)
+    @Getter
+    private SecretConfigurationService secretConfigurationService;
 
     @Value("${actors.session.max_concurrent_sessions_per_device:1}")
     @Getter

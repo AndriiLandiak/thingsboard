@@ -99,6 +99,7 @@ import org.thingsboard.server.common.data.id.QueueId;
 import org.thingsboard.server.common.data.id.RpcId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
+import org.thingsboard.server.common.data.id.SecretId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.TenantProfileId;
@@ -122,6 +123,7 @@ import org.thingsboard.server.common.data.rpc.Rpc;
 import org.thingsboard.server.common.data.rule.RuleChain;
 import org.thingsboard.server.common.data.rule.RuleChainType;
 import org.thingsboard.server.common.data.rule.RuleNode;
+import org.thingsboard.server.common.data.secret.Secret;
 import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.util.ThrowingBiFunction;
 import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
@@ -133,7 +135,6 @@ import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.dao.audit.AuditLogService;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
-import org.thingsboard.server.dao.device.ClaimDevicesService;
 import org.thingsboard.server.dao.device.DeviceCredentialsService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
@@ -154,6 +155,7 @@ import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rpc.RpcService;
 import org.thingsboard.server.dao.rule.RuleChainService;
+import org.thingsboard.server.dao.secret.SecretService;
 import org.thingsboard.server.dao.service.ConstraintValidator;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
@@ -171,16 +173,12 @@ import org.thingsboard.server.service.action.EntityActionService;
 import org.thingsboard.server.service.component.ComponentDiscoveryService;
 import org.thingsboard.server.service.entitiy.TbLogEntityActionService;
 import org.thingsboard.server.service.entitiy.user.TbUserSettingsService;
-import org.thingsboard.server.service.ota.OtaPackageStateService;
-import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.AccessControlService;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
-import org.thingsboard.server.service.state.DeviceStateService;
 import org.thingsboard.server.service.sync.ie.exporting.ExportableEntitiesService;
-import org.thingsboard.server.service.sync.vc.EntitiesVersionControlService;
 import org.thingsboard.server.service.telemetry.AlarmSubscriptionService;
 import org.thingsboard.server.service.telemetry.TelemetrySubscriptionService;
 
@@ -209,8 +207,6 @@ import static org.thingsboard.server.dao.service.Validator.validateId;
 
 @TbCoreComponent
 public abstract class BaseController {
-
-    protected static final String DASHBOARD_ID = "dashboardId";
 
     protected static final String HOME_DASHBOARD_ID = "homeDashboardId";
     protected static final String HOME_DASHBOARD_HIDE_TOOLBAR = "homeDashboardHideToolbar";
@@ -301,9 +297,6 @@ public abstract class BaseController {
     protected AuditLogService auditLogService;
 
     @Autowired
-    protected DeviceStateService deviceStateService;
-
-    @Autowired
     protected EntityViewService entityViewService;
 
     @Autowired
@@ -313,9 +306,6 @@ public abstract class BaseController {
     protected AttributesService attributesService;
 
     @Autowired
-    protected ClaimDevicesService claimDevicesService;
-
-    @Autowired
     protected PartitionService partitionService;
 
     @Autowired
@@ -323,9 +313,6 @@ public abstract class BaseController {
 
     @Autowired
     protected OtaPackageService otaPackageService;
-
-    @Autowired
-    protected OtaPackageStateService otaPackageStateService;
 
     @Autowired
     protected RpcService rpcService;
@@ -338,9 +325,6 @@ public abstract class BaseController {
 
     @Autowired
     protected TbDeviceProfileCache deviceProfileCache;
-
-    @Autowired
-    protected TbAssetProfileCache assetProfileCache;
 
     @Autowired(required = false)
     protected EdgeService edgeService;
@@ -355,9 +339,6 @@ public abstract class BaseController {
     protected QueueService queueService;
 
     @Autowired
-    protected EntitiesVersionControlService vcService;
-
-    @Autowired
     protected ExportableEntitiesService entitiesService;
 
     @Autowired
@@ -365,6 +346,9 @@ public abstract class BaseController {
 
     @Autowired
     protected NotificationTargetService notificationTargetService;
+
+    @Autowired
+    protected SecretService secretService;
 
     @Value("${server.log_controller_error_stack_trace}")
     @Getter
@@ -671,6 +655,9 @@ public abstract class BaseController {
                 case MOBILE_APP_BUNDLE:
                     checkMobileAppBundleId(new MobileAppBundleId(entityId.getId()), operation);
                     return;
+                case SECRET:
+                    checkSecretId(new SecretId(entityId.getId()), operation);
+                    return;
                 default:
                     checkEntityId(entityId, entitiesService::findEntityByTenantIdAndId, operation);
             }
@@ -865,6 +852,10 @@ public abstract class BaseController {
 
     NotificationTarget checkNotificationTargetId(NotificationTargetId notificationTargetId, Operation operation) throws ThingsboardException {
         return checkEntityId(notificationTargetId, notificationTargetService::findNotificationTargetById, operation);
+    }
+
+    Secret checkSecretId(SecretId secretId, Operation operation) throws ThingsboardException {
+        return checkEntityId(secretId, secretService::findSecretById, operation);
     }
 
     protected <I extends EntityId> I emptyId(EntityType entityType) {

@@ -169,6 +169,23 @@ security:
     path: "${SECURITY_JAVA_CACERTS_PATH:${java.home}/lib/security/cacerts}"
     # The password of the cacerts keystore file
     password: "${SECURITY_JAVA_CACERTS_PASSWORD:changeit}"
+  # Secret parameters to encrypt/decrypt sensitive information
+  secret:
+    # Key to process encryption/decryption
+    key: "${SECURITY.SECRET.KEY:7V9OgYiZFDoeMiYMg623EOPDocwOqfFNffF5Ds8Bmsw=}"
+    # Key algorithm (Industry-standard encryption like AES-256 is recommended to generate key_base and use in production)
+    key_algorithm: "${SECURITY.SECRET.KEY_ALGORITHM:AES}"
+    # Encryption mode (AES-GCM is recommended)
+    encryption_mode: "${SECURITY.SECRET.ENCRYPTION_MODE:AES/GCM/NoPadding}"
+    # Dynamic IV size based on the encryption mode
+    iv_size:
+      AES/GCM/NoPadding: 12
+      AES/CBC/PKCS5Padding: 16
+      AES-CTR/NoPadding: 16
+      AES-CFB/NoPadding: 16
+      AES-OFB/NoPadding: 16
+      AES-XTS/NoPadding: 16
+      default: 12
 
 # Mail settings parameters
 mail:
