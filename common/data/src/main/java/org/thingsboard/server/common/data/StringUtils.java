@@ -222,7 +222,7 @@ public class StringUtils {
     }
 
     public static String randomAlphanumeric(int count) {
-        return RandomStringUtils.randomAlphanumeric(count);
+        return RandomStringUtils.secure().nextAlphanumeric(count);
     }
 
     public static String randomAlphabetic(int count) {

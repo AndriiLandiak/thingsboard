@@ -45,7 +45,7 @@ public abstract class CaffeineTbTransactionalCache<K extends Serializable, V ext
 
     public CaffeineTbTransactionalCache(CacheManager cacheManager, String cacheName) {
         this.cacheName = cacheName;
-        this.cache = Optional.ofNullable(cacheManager.getCache(cacheName))
+        this.cache = Optional.of(cacheManager.getCache(cacheName))
                 .orElseThrow(() -> new IllegalArgumentException("Cache '" + cacheName + "' is not configured"));
     }
 

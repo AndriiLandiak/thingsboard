@@ -58,6 +58,8 @@ import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
+import org.thingsboard.server.dao.pat.ApiKeyDao;
+import org.thingsboard.server.dao.pat.ApiKeyService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
@@ -97,6 +99,7 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
     private final UserSettingsService userSettingsService;
     private final UserSettingsDao userSettingsDao;
     private final SecuritySettingsService securitySettingsService;
+    private final ApiKeyService apiKeyService;
     private final DataValidator<User> userValidator;
     private final DataValidator<UserCredentials> userCredentialsValidator;
     private final ApplicationEventPublisher eventPublisher;
@@ -335,6 +338,7 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
         publishEvictEvent(new UserCacheEvictEvent(user.getTenantId(), user.getEmail(), null));
         userSettingsDao.removeByUserId(tenantId, userId);
         userDao.removeById(tenantId, userId.getId());
+        apiKeyService.deleteByUserId(tenantId, userId);
         eventPublisher.publishEvent(new UserCredentialsInvalidationEvent(userId));
         countService.publishCountEntityEvictEvent(tenantId, EntityType.USER);
         eventPublisher.publishEvent(DeleteEntityEvent.builder()

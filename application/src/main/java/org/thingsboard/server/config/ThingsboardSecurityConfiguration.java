@@ -48,13 +48,15 @@ import org.thingsboard.server.dao.oauth2.OAuth2Configuration;
 import org.thingsboard.server.exception.ThingsboardErrorResponseHandler;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.auth.AuthExceptionHandler;
+import org.thingsboard.server.service.security.auth.extractor.TokenExtractor;
 import org.thingsboard.server.service.security.auth.jwt.JwtAuthenticationProvider;
 import org.thingsboard.server.service.security.auth.jwt.JwtTokenAuthenticationProcessingFilter;
 import org.thingsboard.server.service.security.auth.jwt.RefreshTokenAuthenticationProvider;
 import org.thingsboard.server.service.security.auth.jwt.RefreshTokenProcessingFilter;
 import org.thingsboard.server.service.security.auth.jwt.SkipPathRequestMatcher;
-import org.thingsboard.server.service.security.auth.jwt.extractor.TokenExtractor;
 import org.thingsboard.server.service.security.auth.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
+import org.thingsboard.server.service.security.auth.pat.ApiKeyAuthenticationProvider;
+import org.thingsboard.server.service.security.auth.pat.ApiKeyTokenAuthenticationProcessingFilter;
 import org.thingsboard.server.service.security.auth.rest.RestAuthenticationProvider;
 import org.thingsboard.server.service.security.auth.rest.RestLoginProcessingFilter;
 import org.thingsboard.server.service.security.auth.rest.RestPublicLoginProcessingFilter;
@@ -74,6 +76,9 @@ public class ThingsboardSecurityConfiguration {
     public static final String JWT_TOKEN_HEADER_PARAM = "X-Authorization";
     public static final String JWT_TOKEN_HEADER_PARAM_V2 = "Authorization";
     public static final String JWT_TOKEN_QUERY_PARAM = "token";
+
+    public static final String API_KEY_HEADER_PREFIX = "ApiKey ";
+    public static final String BEARER_HEADER_PREFIX = "Bearer ";
 
     public static final String DEVICE_API_ENTRY_POINT = "/api/v1/**";
     public static final String FORM_BASED_LOGIN_ENTRY_POINT = "/api/auth/login";
@@ -116,6 +121,8 @@ public class ThingsboardSecurityConfiguration {
     private JwtAuthenticationProvider jwtAuthenticationProvider;
     @Autowired
     private RefreshTokenAuthenticationProvider refreshTokenAuthenticationProvider;
+    @Autowired
+    private ApiKeyAuthenticationProvider apiKeyAuthenticationProvider;
 
     @Autowired(required = false)
     OAuth2Configuration oauth2Configuration;
@@ -123,6 +130,10 @@ public class ThingsboardSecurityConfiguration {
     @Autowired
     @Qualifier("jwtHeaderTokenExtractor")
     private TokenExtractor jwtHeaderTokenExtractor;
+
+    @Autowired
+    @Qualifier("apiKeyHeaderTokenExtractor")
+    private TokenExtractor apiKeyHeaderTokenExtractor;
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -139,7 +150,7 @@ public class ThingsboardSecurityConfiguration {
     }
 
     @Bean
-    protected FilterRegistrationBean<ShallowEtagHeaderFilter> buildEtagFilter() throws Exception {
+    protected FilterRegistrationBean<ShallowEtagHeaderFilter> buildEtagFilter() {
         ShallowEtagHeaderFilter etagFilter = new ShallowEtagHeaderFilter();
         etagFilter.setWriteWeakETag(true);
         FilterRegistrationBean<ShallowEtagHeaderFilter> filterRegistrationBean
@@ -150,20 +161,21 @@ public class ThingsboardSecurityConfiguration {
     }
 
     @Bean
-    protected RestLoginProcessingFilter buildRestLoginProcessingFilter() throws Exception {
+    protected RestLoginProcessingFilter buildRestLoginProcessingFilter() {
         RestLoginProcessingFilter filter = new RestLoginProcessingFilter(FORM_BASED_LOGIN_ENTRY_POINT, successHandler, failureHandler);
         filter.setAuthenticationManager(this.authenticationManager);
         return filter;
     }
 
     @Bean
-    protected RestPublicLoginProcessingFilter buildRestPublicLoginProcessingFilter() throws Exception {
+    protected RestPublicLoginProcessingFilter buildRestPublicLoginProcessingFilter() {
         RestPublicLoginProcessingFilter filter = new RestPublicLoginProcessingFilter(PUBLIC_LOGIN_ENTRY_POINT, successHandler, failureHandler);
         filter.setAuthenticationManager(this.authenticationManager);
         return filter;
     }
 
-    protected JwtTokenAuthenticationProcessingFilter buildJwtTokenAuthenticationProcessingFilter() throws Exception {
+    @Bean
+    protected JwtTokenAuthenticationProcessingFilter buildJwtTokenAuthenticationProcessingFilter() {
         List<String> pathsToSkip = new ArrayList<>(Arrays.asList(NON_TOKEN_BASED_AUTH_ENTRY_POINTS));
         pathsToSkip.addAll(Arrays.asList(WS_ENTRY_POINT, TOKEN_REFRESH_ENTRY_POINT, FORM_BASED_LOGIN_ENTRY_POINT,
                 PUBLIC_LOGIN_ENTRY_POINT, DEVICE_API_ENTRY_POINT, MAIL_OAUTH2_PROCESSING_ENTRY_POINT,
@@ -176,7 +188,20 @@ public class ThingsboardSecurityConfiguration {
     }
 
     @Bean
-    protected RefreshTokenProcessingFilter buildRefreshTokenProcessingFilter() throws Exception {
+    protected ApiKeyTokenAuthenticationProcessingFilter buildApiKeyTokenAuthenticationProcessingFilter() {
+        List<String> pathsToSkip = new ArrayList<>(Arrays.asList(NON_TOKEN_BASED_AUTH_ENTRY_POINTS));
+        pathsToSkip.addAll(Arrays.asList(WS_ENTRY_POINT, TOKEN_REFRESH_ENTRY_POINT, FORM_BASED_LOGIN_ENTRY_POINT,
+                PUBLIC_LOGIN_ENTRY_POINT, DEVICE_API_ENTRY_POINT, MAIL_OAUTH2_PROCESSING_ENTRY_POINT,
+                DEVICE_CONNECTIVITY_CERTIFICATE_DOWNLOAD_ENTRY_POINT));
+        SkipPathRequestMatcher matcher = new SkipPathRequestMatcher(pathsToSkip, TOKEN_BASED_AUTH_ENTRY_POINT);
+        ApiKeyTokenAuthenticationProcessingFilter filter =
+                new ApiKeyTokenAuthenticationProcessingFilter(failureHandler, apiKeyHeaderTokenExtractor, matcher);
+        filter.setAuthenticationManager(this.authenticationManager);
+        return filter;
+    }
+
+    @Bean
+    protected RefreshTokenProcessingFilter buildRefreshTokenProcessingFilter() {
         RefreshTokenProcessingFilter filter = new RefreshTokenProcessingFilter(TOKEN_REFRESH_ENTRY_POINT, successHandler, failureHandler);
         filter.setAuthenticationManager(this.authenticationManager);
         return filter;
@@ -187,6 +212,7 @@ public class ThingsboardSecurityConfiguration {
         return new ProviderManager(List.of(
                 restAuthenticationProvider,
                 jwtAuthenticationProvider,
+                apiKeyAuthenticationProvider,
                 refreshTokenAuthenticationProvider
         ));
     }
@@ -233,6 +259,7 @@ public class ThingsboardSecurityConfiguration {
                 .addFilterBefore(buildRestLoginProcessingFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(buildRestPublicLoginProcessingFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(buildJwtTokenAuthenticationProcessingFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(buildApiKeyTokenAuthenticationProcessingFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(buildRefreshTokenProcessingFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(payloadSizeFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(rateLimitProcessingFilter, UsernamePasswordAuthenticationFilter.class)
