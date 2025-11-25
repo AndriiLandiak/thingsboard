@@ -78,7 +78,7 @@ public class CoapDtlsCertificateReloadTest {
 
         ReflectionTestUtils.setField(coapServerService, "server", mockCoapServer);
 
-        ReflectionTestUtils.invokeMethod(coapServerService, "registerCertificateReloadCallback");
+        ReflectionTestUtils.invokeMethod(coapServerService, "afterSingletonsInstantiated");
 
         ArgumentCaptor<Runnable> callbackCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(mockDtlsSettings).registerReloadCallback(callbackCaptor.capture());
@@ -89,7 +89,7 @@ public class CoapDtlsCertificateReloadTest {
     public void givenDtlsNotEnabled_whenRegisterCertificateReloadCallback_thenShouldNotRegisterCallback() {
         when(mockCoapServerContext.getDtlsSettings()).thenReturn(null);
 
-        ReflectionTestUtils.invokeMethod(coapServerService, "registerCertificateReloadCallback");
+        ReflectionTestUtils.invokeMethod(coapServerService, "afterSingletonsInstantiated");
 
         verify(mockDtlsSettings, never()).registerReloadCallback(any());
     }
@@ -105,7 +105,7 @@ public class CoapDtlsCertificateReloadTest {
         when(mockCoapServer.getEndpoints()).thenReturn(mock(List.class));
 
         ArgumentCaptor<Runnable> callbackCaptor = ArgumentCaptor.forClass(Runnable.class);
-        ReflectionTestUtils.invokeMethod(coapServerService, "registerCertificateReloadCallback");
+        ReflectionTestUtils.invokeMethod(coapServerService, "afterSingletonsInstantiated");
         verify(mockDtlsSettings).registerReloadCallback(callbackCaptor.capture());
 
         Runnable reloadCallback = callbackCaptor.getValue();
@@ -119,7 +119,7 @@ public class CoapDtlsCertificateReloadTest {
         when(mockCoapServerContext.getPort()).thenReturn(5683);
 
         ReflectionTestUtils.setField(coapServerService, "server", mockCoapServer);
-        ReflectionTestUtils.invokeMethod(coapServerService, "registerCertificateReloadCallback");
+        ReflectionTestUtils.invokeMethod(coapServerService, "afterSingletonsInstantiated");
 
         verify(mockDtlsSettings).registerReloadCallback(any(Runnable.class));
     }
@@ -132,7 +132,7 @@ public class CoapDtlsCertificateReloadTest {
         ReflectionTestUtils.setField(coapServerService, "dtlsConnector", mockDtlsConnector);
 
         ArgumentCaptor<Runnable> callbackCaptor = ArgumentCaptor.forClass(Runnable.class);
-        ReflectionTestUtils.invokeMethod(coapServerService, "registerCertificateReloadCallback");
+        ReflectionTestUtils.invokeMethod(coapServerService, "afterSingletonsInstantiated");
         verify(mockDtlsSettings).registerReloadCallback(callbackCaptor.capture());
 
         Runnable reloadCallback = callbackCaptor.getValue();
