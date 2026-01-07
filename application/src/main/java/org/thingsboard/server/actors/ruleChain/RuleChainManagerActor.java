@@ -37,9 +37,6 @@ import org.thingsboard.server.dao.rule.RuleChainService;
 
 import java.util.function.Function;
 
-/**
- * Created by ashvayka on 15.03.18.
- */
 @Slf4j
 public abstract class RuleChainManagerActor extends ContextAwareActor {
 
@@ -115,4 +112,5 @@ public abstract class RuleChainManagerActor extends ContextAwareActor {
     protected void broadcast(TbActorMsg msg) {
         ctx.broadcastToChildren(msg, new TbEntityTypeActorIdPredicate(EntityType.RULE_CHAIN));
     }
+
 }

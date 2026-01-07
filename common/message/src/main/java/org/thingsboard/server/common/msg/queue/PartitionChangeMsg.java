@@ -20,9 +20,6 @@ import lombok.Getter;
 import org.thingsboard.server.common.msg.MsgType;
 import org.thingsboard.server.common.msg.TbActorMsg;
 
-/**
- * @author Andrew Shvayka
- */
 @Data
 public final class PartitionChangeMsg implements TbActorMsg {
 
@@ -33,4 +30,5 @@ public final class PartitionChangeMsg implements TbActorMsg {
     public MsgType getMsgType() {
         return MsgType.PARTITION_CHANGE_MSG;
     }
+
 }

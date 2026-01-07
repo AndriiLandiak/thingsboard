@@ -72,6 +72,9 @@ public abstract class AbstractTenantEntity<T extends Tenant> extends BaseVersion
     @Column(name = ModelConstants.TENANT_TENANT_PROFILE_ID_PROPERTY, columnDefinition = "uuid")
     private UUID tenantProfileId;
 
+    @Column(name = ModelConstants.TENANT_ENABLED_PROPERTY)
+    private boolean enabled;
+
     public AbstractTenantEntity() {
         super();
     }
@@ -92,6 +95,7 @@ public abstract class AbstractTenantEntity<T extends Tenant> extends BaseVersion
         if (tenant.getTenantProfileId() != null) {
             this.tenantProfileId = tenant.getTenantProfileId().getId();
         }
+        this.enabled = tenant.isEnabled();
     }
 
     public AbstractTenantEntity(TenantEntity tenantEntity) {
@@ -108,6 +112,7 @@ public abstract class AbstractTenantEntity<T extends Tenant> extends BaseVersion
         this.email = tenantEntity.getEmail();
         this.additionalInfo = tenantEntity.getAdditionalInfo();
         this.tenantProfileId = tenantEntity.getTenantProfileId();
+        this.enabled = tenantEntity.isEnabled();
     }
 
     protected Tenant toTenant() {
@@ -128,8 +133,8 @@ public abstract class AbstractTenantEntity<T extends Tenant> extends BaseVersion
         if (tenantProfileId != null) {
             tenant.setTenantProfileId(new TenantProfileId(tenantProfileId));
         }
+        tenant.setEnabled(enabled);
         return tenant;
     }
-
 
 }

@@ -27,26 +27,36 @@ import org.thingsboard.server.common.data.id.TenantProfileId;
 import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
+import java.io.Serial;
+
 @Schema
 @EqualsAndHashCode(callSuper = true)
 public class Tenant extends ContactBased<TenantId> implements HasTenantId, HasTitle, HasVersion {
 
+    @Serial
     private static final long serialVersionUID = 8057243243859922101L;
 
     @Length(fieldName = "title")
     @NoXss
+    @Getter @Setter
     @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Title of the tenant", example = "Company A")
     private String title;
     @NoXss
+    @Getter @Setter
     @Length(fieldName = "region")
     @Schema(description = "Geo region of the tenant", example = "North America")
     private String region;
 
+    @Getter @Setter
     @Schema(description = "JSON object with Tenant Profile Id")
     private TenantProfileId tenantProfileId;
 
     @Getter @Setter
     private Long version;
+
+    @Getter @Setter
+    @Schema(description = "Enable or disable tenant.", example = "true")
+    private boolean enabled;
 
     public Tenant() {
         super();
@@ -62,14 +72,7 @@ public class Tenant extends ContactBased<TenantId> implements HasTenantId, HasTi
         this.region = tenant.getRegion();
         this.tenantProfileId = tenant.getTenantProfileId();
         this.version = tenant.getVersion();
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
+        this.enabled = tenant.isEnabled();
     }
 
     @Override
@@ -83,22 +86,6 @@ public class Tenant extends ContactBased<TenantId> implements HasTenantId, HasTi
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public String getName() {
         return title;
-    }
-
-    public String getRegion() {
-        return region;
-    }
-
-    public void setRegion(String region) {
-        this.region = region;
-    }
-
-    public TenantProfileId getTenantProfileId() {
-        return tenantProfileId;
-    }
-
-    public void setTenantProfileId(TenantProfileId tenantProfileId) {
-        this.tenantProfileId = tenantProfileId;
     }
 
     @Schema(description = "JSON object with the tenant Id. " +
@@ -197,6 +184,8 @@ public class Tenant extends ContactBased<TenantId> implements HasTenantId, HasTi
         builder.append(phone);
         builder.append(", email=");
         builder.append(email);
+        builder.append(", enabled=");
+        builder.append(enabled);
         builder.append(", createdTime=");
         builder.append(createdTime);
         builder.append(", id=");

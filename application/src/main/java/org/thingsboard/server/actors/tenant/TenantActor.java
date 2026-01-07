@@ -43,6 +43,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
 import org.thingsboard.server.common.data.rule.RuleChain;
 import org.thingsboard.server.common.data.rule.RuleChainType;
+import org.thingsboard.server.common.msg.MsgType;
 import org.thingsboard.server.common.msg.TbActorMsg;
 import org.thingsboard.server.common.msg.TbActorStopReason;
 import org.thingsboard.server.common.msg.TbMsg;
@@ -79,6 +80,7 @@ public class TenantActor extends RuleChainManagerActor {
     }
 
     boolean cantFindTenant = false;
+    boolean tenantDisabled = false;
 
     @Override
     public void init(TbActorCtx ctx) throws TbActorException {
@@ -89,6 +91,9 @@ public class TenantActor extends RuleChainManagerActor {
             if (tenant == null) {
                 cantFindTenant = true;
                 log.info("[{}] Started tenant actor for missing tenant.", tenantId);
+            } else if (!tenant.isEnabled()) {
+                tenantDisabled = true;
+                log.info("[{}] Started tenant actor for disabled tenant.", tenantId);
             } else {
                 isCore = systemContext.getServiceInfoProvider().isService(ServiceType.TB_CORE);
                 isRuleEngine = systemContext.getServiceInfoProvider().isService(ServiceType.TB_RULE_ENGINE);
@@ -137,24 +142,10 @@ public class TenantActor extends RuleChainManagerActor {
 
     @Override
     protected boolean doProcess(TbActorMsg msg) {
-        if (cantFindTenant) {
-            log.debug("[{}] Processing message for non-existing tenant: {}", tenantId, msg);
-            switch (msg.getMsgType()) {
-                case QUEUE_TO_RULE_ENGINE_MSG -> {
-                    ((QueueToRuleEngineMsg) msg).getMsg().getCallback().onSuccess();
-                }
-                case TRANSPORT_TO_DEVICE_ACTOR_MSG -> {
-                    ((TransportToDeviceActorMsgWrapper) msg).getCallback().onSuccess();
-                }
-                case CF_STATE_RESTORE_MSG -> {
-                    ((CalculatedFieldStateRestoreMsg) msg).getCallback().onSuccess();
-                }
-                default -> {
-                    if (!log.isDebugEnabled()) {
-                        log.info("[{}] Processing message for non-existing tenant: {}", tenantId, msg);
-                    }
-                }
-            }
+        // Reject messages for non-existing or disabled tenants (except lifecycle messages for re-enabling)
+        if (cantFindTenant || (tenantDisabled && msg.getMsgType() != MsgType.COMPONENT_LIFE_CYCLE_MSG)) {
+            String reason = cantFindTenant ? "non-existing tenant" : "disabled tenant";
+            rejectMessage(msg, reason);
             return true;
         }
         switch (msg.getMsgType()) {
@@ -325,6 +316,21 @@ public class TenantActor extends RuleChainManagerActor {
     }
 
     private void onComponentLifecycleMsg(ComponentLifecycleMsg msg) {
+        if (msg.getEntityId().getEntityType().equals(EntityType.TENANT)) {
+            Tenant tenant = systemContext.getTenantService().findTenantById(tenantId);
+            if (tenant != null) {
+                boolean wasDisabled = tenantDisabled;
+                tenantDisabled = !tenant.isEnabled();
+
+                if (!wasDisabled && tenantDisabled) {
+                    log.info("[{}] Received tenant update. Tenant is DISABLED. Going to stop all processing.", tenantId);
+                    destroyTenantActors();
+                } else if (wasDisabled && !tenantDisabled) {
+                    log.info("[{}] Received tenant update. Tenant is ENABLED. Going to start processing.", tenantId);
+                    initTenantActors();
+                }
+            }
+        }
         if (msg.getEntityId().getEntityType().equals(EntityType.API_USAGE_STATE)) {
             ApiUsageState old = getApiUsageState();
             apiUsageState = new ApiUsageState(systemContext.getApiUsageStateService().getApiUsageState(tenantId));
@@ -370,6 +376,66 @@ public class TenantActor extends RuleChainManagerActor {
                 () -> DefaultActorService.DEVICE_DISPATCHER_NAME,
                 () -> new DeviceActorCreator(systemContext, tenantId, deviceId),
                 () -> true);
+    }
+
+    private void rejectMessage(TbActorMsg msg, String reason) {
+        log.debug("[{}] Rejecting message for {}: {}", tenantId, reason, msg.getMsgType());
+
+        // Handle messages with callbacks via TenantAwareMsg interface (covers most message types)
+        if (msg instanceof TenantAwareMsg tenantAwareMsg) {
+            tenantAwareMsg.getCallback().onSuccess();
+        }
+        // Special handling for QueueToRuleEngineMsg (has nested TbMsg with callback)
+        else if (msg instanceof QueueToRuleEngineMsg queueMsg) {
+            queueMsg.getMsg().getCallback().onSuccess();
+        }
+        // Log other message types without callbacks (if not in debug mode)
+        else if (!log.isDebugEnabled()) {
+            log.info("[{}] Rejected message for {} (no callback): {}", tenantId, reason, msg.getMsgType());
+        }
+    }
+
+    private void destroyTenantActors() {
+        log.info("[{}] Stopping all tenant actors (rule chains, calculated fields, devices).", tenantId);
+        // Stop rule chains
+        if (ruleChainsInitialized) {
+            destroyRuleChains();
+        }
+        // Stop calculated fields actor
+        if (cfActor != null) {
+            ctx.stop(cfActor.getActorId());
+            cfActor = null;
+        }
+        // Stop all device actors
+        ctx.broadcastToChildren(new ComponentLifecycleMsg(tenantId, tenantId, ComponentLifecycleEvent.DELETED), new TbEntityTypeActorIdPredicate(EntityType.DEVICE));
+    }
+
+    private void initTenantActors() {
+        log.info("[{}] Starting tenant actors (rule chains, calculated fields).", tenantId);
+        // Start CF actor if on rule engine service
+        if (isRuleEngine && systemContext.getPartitionService().isManagedByCurrentService(tenantId)) {
+            try {
+                cfActor = ctx.getOrCreateChildActor(new TbStringActorId("CFM|" + tenantId),
+                        () -> DefaultActorService.CF_MANAGER_DISPATCHER_NAME,
+                        () -> new CalculatedFieldManagerActorCreator(systemContext, tenantId),
+                        () -> true);
+                cfActor.tellWithHighPriority(new CalculatedFieldCacheInitMsg(tenantId));
+            } catch (Exception e) {
+                log.info("[{}] Failed to init CF Actor.", tenantId, e);
+            }
+            // Start rule chains if API usage allows
+            try {
+                if (getApiUsageState().isReExecEnabled()) {
+                    log.debug("[{}] Going to init rule chains", tenantId);
+                    initRuleChains();
+                } else {
+                    log.info("[{}] Skip init of the rule chains due to API limits", tenantId);
+                }
+            } catch (Exception e) {
+                log.info("Failed to check ApiUsage \"ReExecEnabled\"!!!", e);
+            }
+        }
+        // Device actors will be created on-demand when messages arrive
     }
 
     private ApiUsageState getApiUsageState() {

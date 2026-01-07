@@ -130,6 +130,7 @@ public class RuleNodeActor extends RuleEngineComponentActor<RuleNodeId, RuleNode
         public TbActor createActor() {
             return new RuleNodeActor(context, tenantId, ruleChainId, ruleChainName, ruleNodeId);
         }
+
     }
 
     @Override

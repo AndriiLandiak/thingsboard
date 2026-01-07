@@ -22,7 +22,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -180,6 +179,22 @@ public class TenantController extends BaseController {
             tenantIds.add(TenantId.fromUUID(tenantIdUUID));
         }
         return tenantService.findTenantsByIds(tenantId, tenantIds);
+    }
+
+    @ApiOperation(value = "Enable/Disable Tenant (setTenantEnabled)",
+            notes = "Enables or disables tenant. " + SYSTEM_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PostMapping(value = "/tenant/{id}/enabled/{enabledValue}")
+    @ResponseStatus(value = HttpStatus.OK)
+    public Tenant setTenantEnabled(
+            @Parameter(description = "Unique identifier of the tenant to enable/disable", required = true)
+            @PathVariable UUID id,
+            @Parameter(description = "Enabled or disabled tenant", required = true)
+            @PathVariable(value = "enabledValue") Boolean enabledValue) throws Exception {
+        TenantId tenantId = TenantId.fromUUID(id);
+        Tenant tenant = checkTenantId(tenantId, Operation.WRITE);
+        tenant.setEnabled(enabledValue);
+        return tbTenantService.save(tenant);
     }
 
 }

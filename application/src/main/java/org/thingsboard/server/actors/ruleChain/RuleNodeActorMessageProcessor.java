@@ -37,9 +37,6 @@ import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.common.stats.TbApiUsageReportClient;
 import org.thingsboard.server.gen.transport.TransportProtos;
 
-/**
- * @author Andrew Shvayka
- */
 @Slf4j
 public class RuleNodeActorMessageProcessor extends ComponentMsgProcessor<RuleNodeId> {
 

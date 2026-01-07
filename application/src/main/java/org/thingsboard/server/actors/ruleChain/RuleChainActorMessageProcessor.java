@@ -59,9 +59,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * @author Andrew Shvayka
- */
 @Slf4j
 public class RuleChainActorMessageProcessor extends ComponentMsgProcessor<RuleChainId> {
 

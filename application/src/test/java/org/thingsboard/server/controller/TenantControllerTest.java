@@ -934,4 +934,42 @@ public class TenantControllerTest extends AbstractControllerTest {
         Mockito.reset(tbClusterService);
     }
 
+    @Test
+    public void testSetTenantEnabled() throws Exception {
+        loginSysAdmin();
+
+        Tenant tenant = new Tenant();
+        tenant.setTitle("Test Tenant for Enable/Disable");
+        Tenant savedTenant = saveTenant(tenant);
+
+        Tenant foundTenant = doGet("/api/tenant/" + savedTenant.getId().getId().toString(), Tenant.class);
+        Assert.assertTrue("Tenant should be enabled by default", foundTenant.isEnabled());
+
+        Tenant disabledTenant = doPost("/api/tenant/" + savedTenant.getId().getId() + "/enabled/false", Tenant.class);
+        Assert.assertFalse("Tenant should be disabled", disabledTenant.isEnabled());
+
+        deleteTenant(savedTenant.getId());
+    }
+
+    @Test
+    public void testSetTenantEnabledAsTenantAdmin() throws Exception {
+        loginSysAdmin();
+
+        Tenant tenant = new Tenant();
+        tenant.setTitle("Test Tenant for Auth Check");
+        Tenant savedTenant = saveTenant(tenant);
+
+        User tenantAdmin = new User();
+        tenantAdmin.setAuthority(Authority.TENANT_ADMIN);
+        tenantAdmin.setTenantId(savedTenant.getId());
+        tenantAdmin.setEmail("tenant.admin.auth.test@thingsboard.io");
+        createUserAndLogin(tenantAdmin, TENANT_ADMIN_PASSWORD);
+
+        doPost("/api/tenant/" + savedTenant.getId().getId() + "/enabled/false")
+                .andExpect(status().isForbidden());
+
+        loginSysAdmin();
+        deleteTenant(savedTenant.getId());
+    }
+
 }

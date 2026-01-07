@@ -113,8 +113,8 @@ import org.thingsboard.server.dao.pat.ApiKeyService;
 import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.relation.RelationService;
-import org.thingsboard.server.dao.resource.TbResourceDataCache;
 import org.thingsboard.server.dao.resource.ResourceService;
+import org.thingsboard.server.dao.resource.TbResourceDataCache;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
@@ -139,9 +139,6 @@ import static org.thingsboard.server.common.data.msg.TbMsgType.ATTRIBUTES_DELETE
 import static org.thingsboard.server.common.data.msg.TbMsgType.ATTRIBUTES_UPDATED;
 import static org.thingsboard.server.common.data.msg.TbMsgType.ENTITY_CREATED;
 
-/**
- * Created by ashvayka on 19.03.18.
- */
 @Slf4j
 public class DefaultTbContext implements TbContext {
 

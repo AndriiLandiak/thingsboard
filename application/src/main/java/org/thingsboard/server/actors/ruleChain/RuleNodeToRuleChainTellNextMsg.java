@@ -30,9 +30,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Set;
 
-/**
- * Created by ashvayka on 19.03.18.
- */
 @Getter
 @EqualsAndHashCode(callSuper = true)
 @ToString

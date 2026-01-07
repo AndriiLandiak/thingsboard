@@ -23,9 +23,6 @@ import org.thingsboard.server.common.data.id.RuleNodeId;
 import org.thingsboard.server.common.msg.MsgType;
 import org.thingsboard.server.common.msg.TbMsg;
 
-/**
- * Created by ashvayka on 19.03.18.
- */
 @EqualsAndHashCode(callSuper = true)
 @ToString
 public final class RuleChainOutputMsg extends TbToRuleChainActorMsg {
@@ -46,4 +43,5 @@ public final class RuleChainOutputMsg extends TbToRuleChainActorMsg {
     public MsgType getMsgType() {
         return MsgType.RULE_CHAIN_OUTPUT_MSG;
     }
+
 }

@@ -392,6 +392,7 @@ public class DefaultTbClusterService implements TbClusterService {
     @Override
     public void onTenantChange(Tenant tenant, TbQueueCallback callback) {
         broadcastEntityChangeToTransport(TenantId.SYS_TENANT_ID, tenant.getId(), tenant, callback);
+        broadcast(new ComponentLifecycleMsg(tenant.getId(), tenant.getId(), ComponentLifecycleEvent.UPDATED));
     }
 
     @Override
