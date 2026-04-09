@@ -13,17 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.server.dao.device;
+package org.thingsboard.server.common.data.security;
 
-import org.thingsboard.server.common.data.DeviceProfile;
-import org.thingsboard.server.dao.device.provision.ProvisionFailedException;
-import org.thingsboard.server.dao.device.provision.ProvisionRequest;
-import org.thingsboard.server.dao.device.provision.ProvisionResponse;
-
-public interface DeviceProvisionService {
-
-    ProvisionResponse provisionDevice(ProvisionRequest provisionRequest) throws ProvisionFailedException;
-
-    ProvisionResponse provisionDeviceViaX509Chain(DeviceProfile deviceProfile, ProvisionRequest provisionRequest) throws ProvisionFailedException;
-
+public enum RevocationReason {
+    COMPROMISED,
+    LOST,
+    DECOMMISSIONED,
+    OTHER
 }

@@ -302,6 +302,19 @@ public class ModelConstants {
     public static final String DEVICE_CREDENTIALS_CREDENTIALS_VALUE_PROPERTY = "credentials_value";
 
     /**
+     * Revoked Certificate constants.
+     */
+    public static final String REVOKED_CERTIFICATE_TABLE_NAME = "revoked_certificates";
+    public static final String REVOKED_CERTIFICATE_TENANT_ID_PROPERTY = TENANT_ID_PROPERTY;
+    public static final String REVOKED_CERTIFICATE_DEVICE_PROFILE_ID_PROPERTY = "device_profile_id";
+    public static final String REVOKED_CERTIFICATE_FINGERPRINT_PROPERTY = "certificate_fingerprint";
+    public static final String REVOKED_CERTIFICATE_REASON_PROPERTY = "revocation_reason";
+    public static final String REVOKED_CERTIFICATE_NOTES_PROPERTY = "revocation_notes";
+    public static final String REVOKED_CERTIFICATE_REVOKED_TIMESTAMP_PROPERTY = "revoked_timestamp";
+    public static final String REVOKED_CERTIFICATE_EXPIRY_DATE_PROPERTY = "certificate_expiry_date";
+    public static final String REVOKED_CERTIFICATE_COMMON_NAME_PROPERTY = "certificate_common_name";
+
+    /**
      * Widgets_bundle constants.
      */
     public static final String WIDGETS_BUNDLE_TABLE_NAME = "widgets_bundle";

@@ -25,3 +25,4 @@ ALTER TABLE calculated_field ADD COLUMN IF NOT EXISTS additional_info varchar;
 ALTER TABLE rule_chain ADD COLUMN IF NOT EXISTS notes varchar(1000000);
 
 -- RULE CHAIN NOTES MIGRATION END
+

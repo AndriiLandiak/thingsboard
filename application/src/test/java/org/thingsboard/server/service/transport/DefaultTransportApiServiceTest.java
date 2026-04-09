@@ -44,6 +44,7 @@ import org.thingsboard.server.dao.device.provision.ProvisionResponseStatus;
 import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.relation.RelationService;
+import org.thingsboard.server.dao.revocation.RevokedCertificateService;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.gen.transport.TransportProtos;
@@ -100,6 +101,8 @@ public class DefaultTransportApiServiceTest {
     protected OtaPackageDataCache otaPackageDataCache;
     @MockBean
     protected QueueService queueService;
+    @MockBean
+    protected RevokedCertificateService revokedCertificateService;
     @SpyBean
     DefaultTransportApiService service;
 
@@ -156,6 +159,50 @@ public class DefaultTransportApiServiceTest {
         verify(service, times(1)).getDeviceInfo(any());
         verify(deviceCredentialsService, times(1)).findDeviceCredentialsByCredentialsId(any());
         verify(deviceProvisionService, times(1)).provisionDeviceViaX509Chain(any(), any());
+    }
+
+    @Test
+    public void givenRevokedLeafCert_whenValidateOrCreateDeviceX509Certificate_thenReturnsEmptyAndSkipsCredentialLookup() {
+        String leafCertHash = EncryptionUtil.getSha3Hash(chain[0]);
+        when(revokedCertificateService.isRevoked(leafCertHash)).thenReturn(true);
+
+        service.validateOrCreateDeviceX509Certificate(certificateChain);
+
+        verify(revokedCertificateService, times(1)).isRevoked(leafCertHash);
+        verify(deviceCredentialsService, times(0)).findDeviceCredentialsByCredentialsId(any());
+        verify(deviceProvisionService, times(0)).provisionDeviceViaX509Chain(any(), any());
+    }
+
+    @Test
+    public void givenNonRevokedCert_whenValidateOrCreateDeviceX509Certificate_thenProceedsToCredentialLookup() {
+        when(revokedCertificateService.isRevoked(any())).thenReturn(false);
+
+        var device = createDevice();
+        var deviceCredentials = createDeviceCredentials(chain[0], device.getId());
+        when(deviceCredentialsService.findDeviceCredentialsByCredentialsId(any())).thenReturn(deviceCredentials);
+
+        TransportProtos.TransportApiResponseMsg response = mock(TransportProtos.TransportApiResponseMsg.class);
+        willReturn(response).given(service).getDeviceInfo(deviceCredentials);
+
+        service.validateOrCreateDeviceX509Certificate(certificateChain);
+
+        verify(revokedCertificateService, times(1)).isRevoked(any());
+        verify(deviceCredentialsService, times(1)).findDeviceCredentialsByCredentialsId(any());
+    }
+
+    @Test
+    public void givenRevokedIntermediateCert_whenValidateOrCreateDeviceX509Certificate_thenReturnsEmptyAndSkipsProvisioning() {
+        String leafCertHash = EncryptionUtil.getSha3Hash(chain[0]);
+        String intermediateCertHash = EncryptionUtil.getSha3Hash(chain[1]);
+        when(revokedCertificateService.isRevoked(leafCertHash)).thenReturn(false);
+        when(revokedCertificateService.isRevoked(intermediateCertHash)).thenReturn(true);
+        when(deviceCredentialsService.findDeviceCredentialsByCredentialsId(leafCertHash)).thenReturn(null);
+
+        service.validateOrCreateDeviceX509Certificate(certificateChain);
+
+        verify(revokedCertificateService, times(1)).isRevoked(leafCertHash);
+        verify(revokedCertificateService, times(1)).isRevoked(intermediateCertHash);
+        verify(deviceProvisionService, times(0)).provisionDeviceViaX509Chain(any(), any());
     }
 
     private DeviceProfile createDeviceProfile(String certificateValue) {

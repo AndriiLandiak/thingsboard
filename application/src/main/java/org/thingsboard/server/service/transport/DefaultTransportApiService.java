@@ -22,7 +22,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.ByteString;
-import org.thingsboard.server.exception.EntitiesLimitExceededException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +80,9 @@ import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.resource.ResourceService;
+import org.thingsboard.server.dao.revocation.RevokedCertificateService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
+import org.thingsboard.server.exception.EntitiesLimitExceededException;
 import org.thingsboard.server.gen.transport.TransportProtos;
 import org.thingsboard.server.gen.transport.TransportProtos.GetDeviceCredentialsRequestMsg;
 import org.thingsboard.server.gen.transport.TransportProtos.GetDeviceRequestMsg;
@@ -115,9 +116,6 @@ import java.util.stream.Collectors;
 import static org.thingsboard.server.service.transport.BasicCredentialsValidationResult.PASSWORD_MISMATCH;
 import static org.thingsboard.server.service.transport.BasicCredentialsValidationResult.VALID;
 
-/**
- * Created by ashvayka on 05.10.18.
- */
 @Slf4j
 @Service
 @TbCoreComponent
@@ -139,6 +137,7 @@ public class DefaultTransportApiService implements TransportApiService {
     private final OtaPackageService otaPackageService;
     private final OtaPackageDataCache otaPackageDataCache;
     private final QueueService queueService;
+    private final RevokedCertificateService revokedCertificateService;
 
     private final ConcurrentMap<String, ReentrantLock> deviceCreationLocks = new ConcurrentReferenceHashMap<>(16, ConcurrentReferenceHashMap.ReferenceType.WEAK);
 
@@ -183,6 +182,10 @@ public class DefaultTransportApiService implements TransportApiService {
         } else if (transportApiRequestMsg.hasValidateX509CertRequestMsg()) {
             ValidateDeviceX509CertRequestMsg msg = transportApiRequestMsg.getValidateX509CertRequestMsg();
             final String hash = msg.getHash();
+            if (revokedCertificateService.isRevoked(hash)) {
+                log.warn("[{}] Certificate is revoked, rejecting authentication", hash);
+                return getEmptyTransportApiResponse();
+            }
             return validateCredentials(hash, DeviceCredentialsType.X509_CERTIFICATE);
         } else if (transportApiRequestMsg.hasValidateOrCreateX509CertRequestMsg()) {
             TransportProtos.ValidateOrCreateDeviceX509CertRequestMsg msg = transportApiRequestMsg.getValidateOrCreateX509CertRequestMsg();
@@ -254,16 +257,20 @@ public class DefaultTransportApiService implements TransportApiService {
 
     protected TransportApiResponseMsg validateOrCreateDeviceX509Certificate(String certificateChain) {
         List<String> chain = X509_CERTIFICATE_TRIM_CHAIN_PATTERN.matcher(certificateChain).results().map(match ->
-                EncryptionUtil.certTrimNewLines(match.group())).collect(Collectors.toList());
+                EncryptionUtil.certTrimNewLines(match.group())).toList();
         for (String certificateValue : chain) {
             String certificateHash = EncryptionUtil.getSha3Hash(certificateValue);
+            if (revokedCertificateService.isRevoked(certificateHash)) {
+                log.warn("[{}] Certificate is revoked, rejecting authentication", certificateHash);
+                return getEmptyTransportApiResponse();
+            }
             DeviceCredentials credentials = deviceCredentialsService.findDeviceCredentialsByCredentialsId(certificateHash);
             if (credentials != null && DeviceCredentialsType.X509_CERTIFICATE.equals(credentials.getCredentialsType())) {
                 return getDeviceInfo(credentials);
             }
             DeviceProfile deviceProfile = deviceProfileService.findDeviceProfileByProvisionDeviceKey(certificateHash);
             if (deviceProfile != null && DeviceProfileProvisionType.X509_CERTIFICATE_CHAIN.equals(deviceProfile.getProvisionType())) {
-                String updatedDeviceProvisionSecret = chain.get(0);
+                String updatedDeviceProvisionSecret = chain.getFirst();
                 ProvisionRequest provisionRequest = createProvisionRequest(updatedDeviceProvisionSecret);
                 try {
                     ProvisionResponse provisionResponse = deviceProvisionService.provisionDeviceViaX509Chain(deviceProfile, provisionRequest);

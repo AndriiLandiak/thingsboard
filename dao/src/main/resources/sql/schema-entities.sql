@@ -361,6 +361,21 @@ CREATE TABLE IF NOT EXISTS device_credentials (
     CONSTRAINT device_credentials_device_id_unq_key UNIQUE (device_id)
 );
 
+CREATE TABLE IF NOT EXISTS revoked_certificates (
+    id uuid NOT NULL CONSTRAINT revoked_certificates_pkey PRIMARY KEY,
+    created_time bigint NOT NULL,
+    tenant_id uuid NOT NULL,
+    device_profile_id uuid NOT NULL,
+    certificate_fingerprint varchar NOT NULL,
+    revocation_reason varchar(32) NOT NULL,
+    revocation_notes varchar,
+    revoked_timestamp bigint NOT NULL,
+    certificate_expiry_date bigint NOT NULL,
+    certificate_common_name varchar,
+    CONSTRAINT revoked_certificates_fingerprint_unq_key UNIQUE (certificate_fingerprint),
+    CONSTRAINT fk_revoked_certificates_device_profile FOREIGN KEY (device_profile_id) REFERENCES device_profile(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS rule_node_debug_event (
     id uuid NOT NULL,
     tenant_id uuid NOT NULL ,
