@@ -41,6 +41,7 @@ public interface EdgeGrpcSessionManager {
     void onConfigurationUpdate(Edge edge);
     void onEdgeDisconnect();
     void onEdgeRemoval();
+    void closeWithError(String errorMsg);
     void destroyAndMarkAsZombieIfFailed();
     boolean destroy();
 

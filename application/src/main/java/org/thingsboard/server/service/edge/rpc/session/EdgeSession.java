@@ -31,13 +31,23 @@ import java.util.List;
 public interface EdgeSession extends Closeable {
 
     StreamObserver<RequestMsg> initInputStream();
+
     EdgeSessionState getState();
+
     void startSyncProcess(boolean fullSync);
+
     void sendDownlinkMsg(ResponseMsg responseMsg);
+
     void addHighPriorityEvent(EdgeEvent edgeEvent);
+
     void processHighPriorityEvents();
+
     boolean hasHighPriorityEvents();
+
     ListenableFuture<Pair<Long, Long>> fetchAndSendEdgeEvents(EdgeEventFetcher fetcher);
+
     ListenableFuture<Boolean> sendDownlinkMsgsPack(List<DownlinkMsg> downlinkMsgsPack);
+
+    void closeWithError(String errorMsg);
 
 }

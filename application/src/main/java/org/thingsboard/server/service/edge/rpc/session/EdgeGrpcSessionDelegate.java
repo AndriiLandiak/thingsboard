@@ -31,4 +31,10 @@ public abstract class EdgeGrpcSessionDelegate implements EdgeGrpcSessionManager 
     public void startSyncProcess(boolean fullSync) {
         getSession().startSyncProcess(fullSync);
     }
+
+    @Override
+    public void closeWithError(String errorMsg) {
+        getSession().closeWithError(errorMsg);
+    }
+
 }

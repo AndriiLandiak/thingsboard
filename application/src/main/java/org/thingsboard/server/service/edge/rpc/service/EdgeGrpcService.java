@@ -26,15 +26,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.common.util.ThingsBoardExecutors;
+import org.thingsboard.edge.exception.EdgeFeatureDisabledException;
 import org.thingsboard.rule.engine.api.AttributesSaveRequest;
 import org.thingsboard.rule.engine.api.TimeseriesSaveRequest;
 import org.thingsboard.server.cache.TbTransactionalCache;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.AttributeScope;
 import org.thingsboard.server.common.data.DataConstants;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.id.EdgeId;
@@ -43,6 +46,7 @@ import org.thingsboard.server.common.data.kv.BooleanDataEntry;
 import org.thingsboard.server.common.data.kv.LongDataEntry;
 import org.thingsboard.server.common.data.msg.TbMsgType;
 import org.thingsboard.server.common.data.notification.rule.trigger.EdgeConnectionTrigger;
+import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgDataType;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
@@ -51,6 +55,8 @@ import org.thingsboard.server.common.msg.edge.EdgeHighPriorityMsg;
 import org.thingsboard.server.common.msg.edge.EdgeSessionMsg;
 import org.thingsboard.server.common.msg.edge.FromEdgeSyncResponse;
 import org.thingsboard.server.common.msg.edge.ToEdgeSyncRequest;
+import org.thingsboard.server.common.msg.plugin.ComponentLifecycleMsg;
+import org.thingsboard.server.common.stats.TbApiUsageStateClient;
 import org.thingsboard.server.gen.edge.v1.EdgeRpcServiceGrpc;
 import org.thingsboard.server.gen.edge.v1.RequestMsg;
 import org.thingsboard.server.gen.edge.v1.ResponseMsg;
@@ -70,6 +76,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static org.thingsboard.server.service.state.DefaultDeviceStateService.ACTIVITY_STATE;
@@ -99,7 +107,9 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
     private final TbServiceInfoProvider serviceInfoProvider;
     private final TelemetrySubscriptionService tsSubService;
     private final TbTransactionalCache<EdgeId, String> edgeIdServiceIdCache;
+    private final TbApiUsageStateClient apiUsageStateClient;
 
+    private final ConcurrentMap<TenantId, Lock> tenantLocks = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, Consumer<FromEdgeSyncResponse>> localSyncEdgeRequests = new ConcurrentHashMap<>();
     private ScheduledExecutorService executorService;
     private ScheduledExecutorService sendDownlinkExecutorService;
@@ -115,6 +125,27 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
         shutdownExecutorSafely(executorService);
         shutdownExecutorSafely(sendDownlinkExecutorService);
         sessions.forEach(EdgeGrpcSessionManager::onEdgeDisconnect);
+        tenantLocks.clear();
+    }
+
+    @EventListener
+    public void onComponentLifecycleMsg(ComponentLifecycleMsg msg) {
+        if (EntityType.TENANT.equals(msg.getEntityId().getEntityType()) && ComponentLifecycleEvent.DELETED.equals(msg.getEvent())) {
+            tenantLocks.remove(msg.getTenantId());
+        } else if (EntityType.API_USAGE_STATE.equals(msg.getEntityId().getEntityType())) {
+            TenantId tenantId = msg.getTenantId();
+            Lock lock = tenantLocks.computeIfAbsent(tenantId, _ -> new ReentrantLock());
+            lock.lock();
+            try {
+                if (apiUsageStateClient.getApiUsageState(tenantId).isEdgeEnabled()) {
+                    return;
+                }
+                log.info("[{}] Edge feature disabled due to API limits. Disconnecting all edge sessions.", tenantId);
+                sessions.getByTenantId(tenantId).forEach(s -> s.closeWithError("Edge feature disabled due to API limits"));
+            } finally {
+                lock.unlock();
+            }
+        }
     }
 
     @Override
@@ -195,17 +226,26 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
         EdgeSessionState state = edgeSession.getState();
         Edge edge = state.getEdge();
         TenantId tenantId = state.getTenantId();
-        log.info("[{}][{}] edge [{}] connected successfully.", tenantId, state.getSessionId(), edgeId);
-        if (sessions.hasByEdgeId(edgeId)) {
-            EdgeGrpcSessionManager existingSession = sessions.getByEdgeId(edgeId);
-            if (existingSession != null) {
-                UUID sessionId = existingSession.getState().getSessionId();
-                log.info("[{}][{}] Replacing existing session [{}] for edge [{}]", tenantId, state.getSessionId(), sessionId, edgeId);
-                existingSession.destroyAndMarkAsZombieIfFailed();
-                sessions.removeBySessionId(sessionId);
+        Lock lock = tenantLocks.computeIfAbsent(tenantId, _ -> new ReentrantLock());
+        lock.lock();
+        try {
+            if (!apiUsageStateClient.getApiUsageState(tenantId).isEdgeEnabled()) {
+                throw new EdgeFeatureDisabledException("Edge feature disabled due to API limits");
             }
+            log.info("[{}][{}] edge [{}] connected successfully.", tenantId, state.getSessionId(), edgeId);
+            if (sessions.hasByEdgeId(edgeId)) {
+                EdgeGrpcSessionManager existingSession = sessions.getByEdgeId(edgeId);
+                if (existingSession != null) {
+                    UUID sessionId = existingSession.getState().getSessionId();
+                    log.info("[{}][{}] Replacing existing session [{}] for edge [{}]", tenantId, state.getSessionId(), sessionId, edgeId);
+                    existingSession.destroyAndMarkAsZombieIfFailed();
+                    sessions.removeBySessionId(sessionId);
+                }
+            }
+            sessions.put(edgeSession);
+        } finally {
+            lock.unlock();
         }
-        sessions.put(edgeSession);
         save(tenantId, edgeId, ACTIVITY_STATE, true);
         long lastConnectTs = System.currentTimeMillis();
         save(tenantId, edgeId, LAST_CONNECT_TIME, lastConnectTs);
@@ -389,4 +429,5 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
             e.shutdown();
         }
     }
+
 }
