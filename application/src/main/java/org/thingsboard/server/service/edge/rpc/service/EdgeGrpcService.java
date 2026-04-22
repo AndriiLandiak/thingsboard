@@ -70,6 +70,7 @@ import org.thingsboard.server.service.edge.rpc.session.EdgeSessionsHolder;
 import org.thingsboard.server.service.edge.rpc.session.manager.EdgeGrpcSessionManager;
 import org.thingsboard.server.service.telemetry.TelemetrySubscriptionService;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -131,20 +132,34 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
     @EventListener
     public void onComponentLifecycleMsg(ComponentLifecycleMsg msg) {
         if (EntityType.TENANT.equals(msg.getEntityId().getEntityType()) && ComponentLifecycleEvent.DELETED.equals(msg.getEvent())) {
-            tenantLocks.remove(msg.getTenantId());
+            TenantId tenantId = msg.getTenantId();
+            List<EdgeGrpcSessionManager> stragglers = sessions.getByTenantId(tenantId);
+            if (!stragglers.isEmpty()) {
+                log.warn("[{}] Tenant deleted but {} edge session(s) still linger - force-closing.", tenantId, stragglers.size());
+                stragglers.forEach(s -> s.closeWithError("Tenant deleted"));
+            }
+            tenantLocks.remove(tenantId);
         } else if (EntityType.API_USAGE_STATE.equals(msg.getEntityId().getEntityType())) {
             TenantId tenantId = msg.getTenantId();
-            Lock lock = tenantLocks.computeIfAbsent(tenantId, _ -> new ReentrantLock());
+            if (apiUsageStateClient.getApiUsageState(tenantId).isEdgeEnabled()) {
+                return;
+            }
+            Lock lock = tenantLocks.get(tenantId);
+            if (lock == null) {
+                return;
+            }
+            List<EdgeGrpcSessionManager> toClose;
             lock.lock();
             try {
                 if (apiUsageStateClient.getApiUsageState(tenantId).isEdgeEnabled()) {
                     return;
                 }
-                log.info("[{}] Edge feature disabled due to API limits. Disconnecting all edge sessions.", tenantId);
-                sessions.getByTenantId(tenantId).forEach(s -> s.closeWithError("Edge feature disabled due to API limits"));
+                toClose = sessions.getByTenantId(tenantId);
             } finally {
                 lock.unlock();
             }
+            log.info("[{}] Edge feature disabled due to API limits. Disconnecting {} edge sessions.", tenantId, toClose.size());
+            toClose.forEach(s -> s.closeWithError("Edge feature disabled due to API limits"));
         }
     }
 
