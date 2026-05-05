@@ -133,12 +133,22 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
     public void onComponentLifecycleMsg(ComponentLifecycleMsg msg) {
         if (EntityType.TENANT.equals(msg.getEntityId().getEntityType()) && ComponentLifecycleEvent.DELETED.equals(msg.getEvent())) {
             TenantId tenantId = msg.getTenantId();
-            List<EdgeGrpcSessionManager> stragglers = sessions.getByTenantId(tenantId);
+            Lock lock = tenantLocks.remove(tenantId);
+            List<EdgeGrpcSessionManager> stragglers;
+            if (lock != null) {
+                lock.lock();
+                try {
+                    stragglers = sessions.getByTenantId(tenantId);
+                } finally {
+                    lock.unlock();
+                }
+            } else {
+                stragglers = sessions.getByTenantId(tenantId);
+            }
             if (!stragglers.isEmpty()) {
                 log.warn("[{}] Tenant deleted but {} edge session(s) still linger - force-closing.", tenantId, stragglers.size());
                 stragglers.forEach(s -> s.closeWithError("Tenant deleted"));
             }
-            tenantLocks.remove(tenantId);
         } else if (EntityType.API_USAGE_STATE.equals(msg.getEntityId().getEntityType())) {
             TenantId tenantId = msg.getTenantId();
             if (apiUsageStateClient.getApiUsageState(tenantId).isEdgeEnabled()) {
@@ -301,6 +311,7 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
             }
         }
         edgeIdServiceIdCache.evict(edgeId);
+        tenantLocks.computeIfPresent(tenantId, (_, lock) -> sessions.getByTenantId(tenantId).isEmpty() ? null : lock);
     }
 
     private void scheduleSyncRequestTimeout(ToEdgeSyncRequest request, UUID requestId) {
