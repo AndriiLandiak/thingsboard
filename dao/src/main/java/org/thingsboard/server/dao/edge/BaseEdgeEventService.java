@@ -36,9 +36,9 @@ public abstract class BaseEdgeEventService implements EdgeEventService {
     @Autowired
     private RateLimitService rateLimitService;
     @Autowired
-    private DataValidator<EdgeEvent> edgeEventValidator;
-    @Autowired(required = false)
     private TbApiUsageReportClient apiUsageReportClient;
+    @Autowired
+    private DataValidator<EdgeEvent> edgeEventValidator;
 
     @Override
     public PageData<EdgeEvent> findEdgeEvents(TenantId tenantId, EdgeId edgeId, Long seqIdStart, Long seqIdEnd, TimePageLink pageLink) {
@@ -61,9 +61,7 @@ public abstract class BaseEdgeEventService implements EdgeEventService {
     }
 
     protected void reportEdgeEventUsage(EdgeEvent edgeEvent) {
-        if (apiUsageReportClient != null) {
-            apiUsageReportClient.report(edgeEvent.getTenantId(), null, ApiUsageRecordKey.EDGE_EVENT_COUNT, 1);
-        }
+        apiUsageReportClient.report(edgeEvent.getTenantId(), null, ApiUsageRecordKey.EDGE_EVENT_COUNT, 1);
     }
 
 }

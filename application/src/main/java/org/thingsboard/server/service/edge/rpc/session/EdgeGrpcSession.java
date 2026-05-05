@@ -570,13 +570,13 @@ public class EdgeGrpcSession implements EdgeSession {
         }
         Edge edge = optional.get();
         TenantId tenantId = edge.getTenantId();
-        state.setEdge(edge);
         try {
             if (!edge.getSecret().equals(request.getEdgeSecret())) {
                 String failureMsg = "Failed to validate the edge! Provided request secret: " + request.getEdgeSecret();
                 processConnectionFailure(edge, failureMsg, "Failed to validate the edge!");
                 return buildErrorResponse(ConnectResponseCode.BAD_CREDENTIALS, failureMsg);
             }
+            state.setEdge(edge);
             sessionOpenListener.accept(edge.getId(), parentManagerRef);
             state.setEdgeVersion(request.getEdgeVersion());
             processSaveEdgeVersionAsAttribute(request.getEdgeVersion().name());

@@ -241,6 +241,7 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
         EdgeSessionState state = edgeSession.getState();
         Edge edge = state.getEdge();
         TenantId tenantId = state.getTenantId();
+        EdgeGrpcSessionManager replaced;
         Lock lock = tenantLocks.computeIfAbsent(tenantId, _ -> new ReentrantLock());
         lock.lock();
         try {
@@ -248,18 +249,18 @@ public class EdgeGrpcService extends EdgeRpcServiceGrpc.EdgeRpcServiceImplBase i
                 throw new EdgeFeatureDisabledException("Edge feature disabled due to API limits");
             }
             log.info("[{}][{}] edge [{}] connected successfully.", tenantId, state.getSessionId(), edgeId);
-            if (sessions.hasByEdgeId(edgeId)) {
-                EdgeGrpcSessionManager existingSession = sessions.getByEdgeId(edgeId);
-                if (existingSession != null) {
-                    UUID sessionId = existingSession.getState().getSessionId();
-                    log.info("[{}][{}] Replacing existing session [{}] for edge [{}]", tenantId, state.getSessionId(), sessionId, edgeId);
-                    existingSession.destroyAndMarkAsZombieIfFailed();
-                    sessions.removeBySessionId(sessionId);
-                }
+            replaced = sessions.getByEdgeId(edgeId);
+            if (replaced != null) {
+                sessions.removeBySessionId(replaced.getState().getSessionId());
             }
             sessions.put(edgeSession);
         } finally {
             lock.unlock();
+        }
+        if (replaced != null) {
+            UUID replacedSessionId = replaced.getState().getSessionId();
+            log.info("[{}][{}] Replacing existing session [{}] for edge [{}]", tenantId, state.getSessionId(), replacedSessionId, edgeId);
+            replaced.destroyAndMarkAsZombieIfFailed();
         }
         save(tenantId, edgeId, ACTIVITY_STATE, true);
         long lastConnectTs = System.currentTimeMillis();
